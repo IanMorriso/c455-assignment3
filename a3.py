@@ -24,6 +24,8 @@ KOMI_LIMIT = 100  # -100 < komi < 100, and komi must be an integer + 0.5
 BLACK = 'b'
 WHITE = 'w'
 COLORS = (BLACK, WHITE)
+POLICIES = ('random', 'probabilistic')
+DEFAULT_POLICY = 'random'
 
 Token = Tuple[str, int]
 Heap = List[Token]
@@ -377,6 +379,8 @@ class CommandInterface:
         self.solver = Solver()  # A2
         self.timelimit = DEFAULT_TIMELIMIT  # A2
         # you can add your own initialisation here
+        self.policy = DEFAULT_POLICY
+        self.simulator = None
         self.commands: CommandMap = {
             "help": self.cmd_help,
             "heapgo": self.cmd_heapgo,
@@ -513,7 +517,26 @@ class CommandInterface:
         return True
 
     def cmd_simulate(self, args: str) -> bool:
-        return not_yet()
+        if self.game is None:
+            print_error("no game started")
+            return False
+        moves = self.game.legal_moves()
+        if not moves:
+            print_error("no legal moves")
+            return False
+
+        # Snapshot of current game
+        self.simulator = self.game.copy()
+
+        if self.policy == 'random':
+            print("enters random")
+            while not self.simulator.game_over():
+                move = random.choice(moves)
+                self.simulator.play(move)
+            print(self.simulator.winner())
+            return True
+        
+        return False
 
     def cmd_numsimulations(self, args: str) -> bool:
         return not_yet()
