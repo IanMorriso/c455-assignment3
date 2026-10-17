@@ -370,6 +370,17 @@ class Solver:
 # ============================================================================
 
 
+class Simulator:
+    def random_sim(self, state: HeapGo) -> str:
+        game = state.copy()
+        
+        while not game.game_over():
+            moves = game.legal_moves()
+            move = random.choice(moves)
+            game.play(move)
+
+        return game.winner()
+
 CommandMap = Dict[str, Callable[[str], bool]]
 
 
@@ -380,7 +391,7 @@ class CommandInterface:
         self.timelimit = DEFAULT_TIMELIMIT  # A2
         # you can add your own initialisation here
         self.policy = DEFAULT_POLICY
-        self.simulator = None
+        self.simulator = Simulator()
         self.commands: CommandMap = {
             "help": self.cmd_help,
             "heapgo": self.cmd_heapgo,
@@ -520,22 +531,12 @@ class CommandInterface:
         if self.game is None:
             print_error("no game started")
             return False
-        moves = self.game.legal_moves()
-        if not moves:
-            print_error("no legal moves")
-            return False
-
-        # Snapshot of current game
-        self.simulator = self.game.copy()
 
         if self.policy == 'random':
-            print("enters random")
-            while not self.simulator.game_over():
-                move = random.choice(moves)
-                self.simulator.play(move)
-            print(self.simulator.winner())
+            print(self.simulator.random_sim(self.game))
             return True
-        
+
+
         return False
 
     def cmd_numsimulations(self, args: str) -> bool:
