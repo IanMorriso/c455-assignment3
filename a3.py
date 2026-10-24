@@ -407,7 +407,6 @@ class Simulator:
 
         return move_with_most_wins
     
-
 CommandMap = Dict[str, Callable[[str], bool]]
 
 
@@ -417,7 +416,6 @@ class CommandInterface:
         self.solver = Solver()  # A2
         self.timelimit = DEFAULT_TIMELIMIT  # A2
         # you can add your own initialisation here
-        self.policy = DEFAULT_POLICY
         self.simulator = Simulator()
         self.commands: CommandMap = {
             "help": self.cmd_help,
@@ -547,8 +545,6 @@ class CommandInterface:
         if not moves:
             print_error("no legal moves")
             return False
-        # you need to replace this random move by a move from your
-        # simulation-based player
         move = self.simulator.best_move(self.game)
         self.game.play(move)
         print(move)
@@ -559,11 +555,8 @@ class CommandInterface:
             print_error("no game started")
             return False
 
-        if self.policy == 'random':
-            print(self.simulator.simulate(self.game))
-            return True
-
-        return False
+        print(self.simulator.simulate(self.game))
+        return True
 
     def cmd_numsimulations(self, args: str) -> bool:
         simulations = parse_int_within_range(args, MIN_SIMS, MAX_SIMS)
