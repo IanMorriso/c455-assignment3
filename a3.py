@@ -26,6 +26,9 @@ WHITE = 'w'
 COLORS = (BLACK, WHITE)
 POLICIES = ('random', 'probabilistic')
 DEFAULT_POLICY = 'random'
+DEFAULT_SIMULATIONS = 10
+MIN_SIMS = 1
+MAX_SIMS = 100
 
 Token = Tuple[str, int]
 Heap = List[Token]
@@ -129,17 +132,17 @@ def parse_heap_number(args: str) -> Optional[int]:
         return None
 
 
-def parse_timelimit(args: str) -> Optional[int]:
+def parse_int_within_range(args: str, min: int, max: int) -> Optional[int]:
     parts = args.split()
     if len(parts) != 1:
         return None
     try:
-        seconds = int(parts[0])
+        value = int(parts[0])
     except ValueError:
         return None
-    if not (MIN_TIMELIMIT <= seconds <= MAX_TIMELIMIT):
+    if not (min <= value <= max):
         return None
-    return seconds
+    return value
 
 # ---------------------------------------------------------------------------
 # Game
@@ -371,7 +374,11 @@ class Solver:
 
 
 class Simulator:
-    def random_sim(self, state: HeapGo) -> str:
+    def __init__(self) -> None:
+        self.sim_limit = DEFAULT_SIMULATIONS
+        self.policy = DEFAULT_POLICY
+
+    def simulate(self, state: HeapGo) -> Optional[str]:
         game = state.copy()
         
         while not game.game_over():
@@ -380,6 +387,24 @@ class Simulator:
             game.play(move)
 
         return game.winner()
+
+    def best_move(self, game: HeapGo) -> int:
+        color = game.toplay
+        most_wins = -1
+        move_with_most_wins = None
+        for move in game.legal_moves():
+            taken, gained = game.play_move(move)
+            wins = 0
+            for _ in range(self.sim_limit):
+                if self.simulate(game) == color:
+                    wins += 1
+            if wins > most_wins:
+                most_wins = wins
+                move_with_most_wins = move
+            game.undo_move(move, taken, gained)
+
+        return move_with_most_wins
+    
 
 CommandMap = Dict[str, Callable[[str], bool]]
 
@@ -502,7 +527,7 @@ class CommandInterface:
         return True
 
     def cmd_timelimit(self, args: str) -> bool:
-        seconds = parse_timelimit(args)
+        seconds = parse_int_within_range(args, MIN_TIMELIMIT, MAX_TIMELIMIT)
         if seconds is None:
             print_error("invalid time limit: {}".format(args))
             return False
@@ -522,7 +547,7 @@ class CommandInterface:
             return False
         # you need to replace this random move by a move from your
         # simulation-based player
-        move = random.choice(moves)
+        move = self.simulator.best_move(self.game)
         self.game.play(move)
         print(move)
         return True
@@ -533,14 +558,18 @@ class CommandInterface:
             return False
 
         if self.policy == 'random':
-            print(self.simulator.random_sim(self.game))
+            print(self.simulator.simulate(self.game))
             return True
-
 
         return False
 
     def cmd_numsimulations(self, args: str) -> bool:
-        return not_yet()
+        simulations = parse_int_within_range(args, MIN_SIMS, MAX_SIMS)
+        if simulations is None:
+            print_error("invalid numsimulations limit: {}".format(args))
+            return False
+        self.simulator.sim_limit = simulations
+        return True
 
     def cmd_policy(self, args: str) -> bool:
         return not_yet()
