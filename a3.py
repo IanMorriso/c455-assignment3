@@ -380,11 +380,13 @@ class Simulator:
 
     def simulate(self, state: HeapGo) -> Optional[str]:
         game = state.copy()
-        
-        while not game.game_over():
-            moves = game.legal_moves()
+        moves = game.legal_moves()
+
+        while not len(moves) == 0:
             move = random.choice(moves)
-            game.play(move)
+            game.play_move(move)
+            if len(game.heaps[move]) == 0:
+                moves.remove(move)
 
         return game.winner()
 
