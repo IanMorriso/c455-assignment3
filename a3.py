@@ -212,7 +212,26 @@ class HeapGo:
 # ============================================================================
 # A2: end of game changes
 # ============================================================================
-
+def prepare_tables(game: HeapGo) -> Tuple[List, List]:
+    # num_heaps = len(game.heaps)
+    gain: List[List[List[int]]] = [[], []]
+    take: List[List[List[int]]] = [[], []]
+    for color_index, color in enumerate(COLORS):
+        for heap in game.heaps:
+            gains, takes = [0], [0]  # nothing to take from an empty heap
+            for size in range(1, len(heap) + 1):
+                taken, gained = 0, 0
+                while taken < size and heap[size - 1 - taken][0] == color:
+                    gained += heap[size - 1 - taken][1]
+                    taken += 1
+                if taken < size:
+                    gained += heap[size - 1 - taken][1]
+                    taken += 1
+                gains.append(gained)
+                takes.append(taken)
+            gain[color_index].append(gains)
+            take[color_index].append(takes)
+    return gain, take
 
 # ============================================================================
 # A2: the solver
@@ -378,12 +397,19 @@ class Simulator:
         self.sim_limit = DEFAULT_SIMULATIONS
         self.policy = DEFAULT_POLICY
 
-    def simulate(self, state: HeapGo) -> Optional[str]:
+    def simulate(self, state: HeapGo, gain: List, take: List) -> Optional[str]:
         game = state.copy()
         moves = game.legal_moves()
 
         while not len(moves) == 0:
-            move = random.choice(moves)
+            if self.policy == "random":
+                move = random.choice(moves)
+            else:   # probabilistic
+                weights = []
+                for heap in moves:
+                    weights.append(gain[COLORS.index(game.toplay)][heap][len(game.heaps[heap])])
+                move = random.choices(moves, weights=weights)[0]
+
             game.play_move(move)
             if len(game.heaps[move]) == 0:
                 moves.remove(move)
@@ -394,11 +420,12 @@ class Simulator:
         color = game.toplay
         most_wins = -1
         move_with_most_wins = None
+        gain, take = prepare_tables(game)
         for move in game.legal_moves():
             taken, gained = game.play_move(move)
             wins = 0
             for _ in range(self.sim_limit):
-                if self.simulate(game) == color:
+                if self.simulate(game, gain, take) == color:
                     wins += 1
             if wins > most_wins:
                 most_wins = wins
@@ -554,8 +581,8 @@ class CommandInterface:
         if self.game is None:
             print_error("no game started")
             return False
-
-        print(self.simulator.simulate(self.game))
+        gain, take = prepare_tables(self.game)
+        print(self.simulator.simulate(self.game, gain, take))
         return True
 
     def cmd_numsimulations(self, args: str) -> bool:
@@ -567,7 +594,10 @@ class CommandInterface:
         return True
 
     def cmd_policy(self, args: str) -> bool:
-        return not_yet()
+        if args in POLICIES:
+            self.simulator.policy = args
+            return True
+        return False
 
     def cmd_policymoves(self, args: str) -> bool:
         return not_yet()
