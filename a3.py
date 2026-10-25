@@ -213,7 +213,6 @@ class HeapGo:
 # A2: end of game changes
 # ============================================================================
 def prepare_tables(game: HeapGo) -> Tuple[List, List]:
-    # num_heaps = len(game.heaps)
     gain: List[List[List[int]]] = [[], []]
     take: List[List[List[int]]] = [[], []]
     for color_index, color in enumerate(COLORS):
@@ -261,23 +260,7 @@ class Solver:
         """Precompute what a move takes, for every color, heap and heap size.
         The search then never has to look at a token again."""
         self.num_heaps = len(game.heaps)
-        self.gain: List[List[List[int]]] = [[], []]
-        self.take: List[List[List[int]]] = [[], []]
-        for color_index, color in enumerate(COLORS):
-            for heap in game.heaps:
-                gains, takes = [0], [0]  # nothing to take from an empty heap
-                for size in range(1, len(heap) + 1):
-                    taken, gained = 0, 0
-                    while taken < size and heap[size - 1 - taken][0] == color:
-                        gained += heap[size - 1 - taken][1]
-                        taken += 1
-                    if taken < size:
-                        gained += heap[size - 1 - taken][1]
-                        taken += 1
-                    gains.append(gained)
-                    takes.append(taken)
-                self.gain[color_index].append(gains)
-                self.take[color_index].append(takes)
+        self.gain, self.take = prepare_tables(game)
 
     def solve(self, game: HeapGo, timelimit: int) -> Optional[Tuple[str, Optional[int]]]:
         """Returns (winner, move), or None when the time limit runs out.
@@ -406,24 +389,31 @@ class Simulator:
                 move = random.choice(moves)
             else:   # probabilistic
                 weights = []
+                color = COLORS.index(game.toplay)
+                # Check weights (score for each move) using tables created from the prepare() function 
                 for heap in moves:
-                    weights.append(gain[COLORS.index(game.toplay)][heap][len(game.heaps[heap])])
+                    weights.append(gain[color][heap][len(game.heaps[heap])])
                 move = random.choices(moves, weights=weights)[0]
 
             game.play_move(move)
+            # Remove an empty heap so it cannot be picked from
             if len(game.heaps[move]) == 0:
                 moves.remove(move)
 
         return game.winner()
 
     def best_move(self, game: HeapGo) -> int:
+        """
+        Generates best move using simulate and the current set policy
+        """
         color = game.toplay
-        most_wins = -1
+        most_wins = -1              # Need to set this to -1, else no wins cna return None
         move_with_most_wins = None
         gain, take = prepare_tables(game)
         for move in game.legal_moves():
             taken, gained = game.play_move(move)
             wins = 0
+            # From the current move, simulate n=self.sim_limit further moves
             for _ in range(self.sim_limit):
                 if self.simulate(game, gain, take) == color:
                     wins += 1
