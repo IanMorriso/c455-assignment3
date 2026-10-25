@@ -391,8 +391,9 @@ class Simulator:
                 weights = []
                 color = COLORS.index(game.toplay)
                 # Check weights (score for each move) using tables created from the prepare() function 
-                for heap in moves:
-                    weights.append(gain[color][heap][len(game.heaps[heap])])
+                # for heap in moves:
+                #     weights.append(gain[color][heap][len(game.heaps[heap])])
+                weights = self.calculate_weights(game, moves, gain)
                 move = random.choices(moves, weights=weights)[0]
 
             game.play_move(move)
@@ -401,6 +402,15 @@ class Simulator:
                 moves.remove(move)
 
         return game.winner()
+
+    def calculate_weights(self, game: HeapGo, moves: List, gain: List) -> List:
+        weights = []
+        color = COLORS.index(game.toplay)
+
+        for heap in moves:
+            weights.append(gain[color][heap][len(game.heaps[heap])])
+
+        return weights
 
     def best_move(self, game: HeapGo) -> int:
         """
@@ -590,7 +600,11 @@ class CommandInterface:
         return False
 
     def cmd_policymoves(self, args: str) -> bool:
-        return not_yet()
+        if self.game is None:
+            print_error("no game started")
+            return False
+        
+        return
 #============================================================================
 # End of functions requiring implementation
 #============================================================================
