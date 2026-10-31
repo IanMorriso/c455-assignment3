@@ -9,6 +9,8 @@ import random
 import time
 from sys import stderr
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from itertools import zip_longest
+from decimal import Decimal, ROUND_HALF_UP
 
 # ---------------------------------------------------------------------------
 # Assignment restrictions (see assignment page)
@@ -29,6 +31,7 @@ DEFAULT_POLICY = 'random'
 DEFAULT_SIMULATIONS = 10
 MIN_SIMS = 1
 MAX_SIMS = 100
+THOUSANDTHS = Decimal('0.001')
 
 Token = Tuple[str, int]
 Heap = List[Token]
@@ -390,9 +393,6 @@ class Simulator:
             else:   # probabilistic
                 weights = []
                 color = COLORS.index(game.toplay)
-                # Check weights (score for each move) using tables created from the prepare() function 
-                # for heap in moves:
-                #     weights.append(gain[color][heap][len(game.heaps[heap])])
                 weights = self.calculate_weights(game, moves, gain)
                 move = random.choices(moves, weights=weights)[0]
 
@@ -604,7 +604,26 @@ class CommandInterface:
             print_error("no game started")
             return False
         
-        return
+        moves = self.game.legal_moves()
+        move_count = len(moves)
+
+        if move_count == 0:
+            return True
+        
+        if self.simulator.policy == 'random':
+            weights = [1] * move_count
+        else:
+            gain, _ = prepare_tables(self.game)
+            weights = self.simulator.calculate_weights(self.game, moves, gain)
+
+        total = sum(weights)
+        rounded = [(Decimal(w) / Decimal(total)).quantize(THOUSANDTHS, rounding=ROUND_HALF_UP) for w in weights]
+        policy_moves = zip(moves, rounded)
+        formatted_moves = ["{} {}".format(heap, probability) for heap, probability in policy_moves]
+        print(" ".join(formatted_moves))
+        
+        return True
+    
 #============================================================================
 # End of functions requiring implementation
 #============================================================================
