@@ -383,7 +383,7 @@ class Simulator:
         self.sim_limit = DEFAULT_SIMULATIONS
         self.policy = DEFAULT_POLICY
 
-    def simulate(self, state: HeapGo, gain: List, take: List) -> Optional[str]:
+    def simulate(self, state: HeapGo, gain: List[int], take: List[int]) -> Optional[str]:
         game = state.copy()
         moves = game.legal_moves()
 
@@ -391,8 +391,6 @@ class Simulator:
             if self.policy == "random":
                 move = random.choice(moves)
             else:   # probabilistic
-                weights = []
-                color = COLORS.index(game.toplay)
                 weights = self.calculate_weights(game, moves, gain)
                 move = random.choices(moves, weights=weights)[0]
 
@@ -403,14 +401,9 @@ class Simulator:
 
         return game.winner()
 
-    def calculate_weights(self, game: HeapGo, moves: List, gain: List) -> List:
-        weights = []
+    def calculate_weights(self, game: HeapGo, moves: List[int], gain: List[int]) -> List[int]:
         color = COLORS.index(game.toplay)
-
-        for heap in moves:
-            weights.append(gain[color][heap][len(game.heaps[heap])])
-
-        return weights
+        return [gain[color][heap][len(game.heaps[heap])] for heap in moves]
 
     def best_move(self, game: HeapGo) -> int:
         """
