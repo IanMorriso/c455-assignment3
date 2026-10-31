@@ -383,7 +383,7 @@ class Simulator:
         self.sim_limit = DEFAULT_SIMULATIONS
         self.policy = DEFAULT_POLICY
 
-    def simulate(self, state: HeapGo, gain: List[int], take: List[int]) -> Optional[str]:
+    def simulate(self, state: HeapGo, gain: List[int]) -> Optional[str]:
         game = state.copy()
         moves = game.legal_moves()
 
@@ -412,13 +412,15 @@ class Simulator:
         color = game.toplay
         most_wins = -1              # Need to set this to -1, else no wins cna return None
         move_with_most_wins = None
-        gain, take = prepare_tables(game)
+        gain, _ = prepare_tables(game)
+
         for move in game.legal_moves():
             taken, gained = game.play_move(move)
             wins = 0
+            
             # From the current move, simulate n=self.sim_limit further moves
             for _ in range(self.sim_limit):
-                if self.simulate(game, gain, take) == color:
+                if self.simulate(game, gain) == color:
                     wins += 1
             if wins > most_wins:
                 most_wins = wins
@@ -574,8 +576,8 @@ class CommandInterface:
         if self.game is None:
             print_error("no game started")
             return False
-        gain, take = prepare_tables(self.game)
-        print(self.simulator.simulate(self.game, gain, take))
+        gain, _ = prepare_tables(self.game)
+        print(self.simulator.simulate(self.game, gain))
         return True
 
     def cmd_numsimulations(self, args: str) -> bool:
