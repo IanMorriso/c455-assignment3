@@ -3,13 +3,16 @@
 # Implement the new commands to complete the assignment
 # Full assignment specification and game rules on Canvas
 
+# I used Claude Opus 5.5 (high) to help me plan out my solution.
+# It never generated any code as I used it more like a rubber duck
+# too bounce ideas off of and sanity check my approach.
+
 import ast
 import math
 import random
 import time
 from sys import stderr
 from typing import Any, Callable, Dict, List, Optional, Tuple
-from itertools import zip_longest
 from decimal import Decimal, ROUND_HALF_UP
 
 # ---------------------------------------------------------------------------
@@ -36,6 +39,7 @@ THOUSANDTHS = Decimal('0.001')
 Token = Tuple[str, int]
 Heap = List[Token]
 Heaps = List[Heap]
+MoveTable = List[List[List[int]]]  # [color][heap][size]
 
 # ---------------------------------------------------------------------------
 # A2: solver constants
@@ -215,9 +219,11 @@ class HeapGo:
 # ============================================================================
 # A2: end of game changes
 # ============================================================================
-def prepare_tables(game: HeapGo) -> Tuple[List, List]:
-    gain: List[List[List[int]]] = [[], []]
-    take: List[List[List[int]]] = [[], []]
+
+
+def prepare_tables(game: HeapGo) -> Tuple[MoveTable, MoveTable]:
+    gain: MoveTable = [[], []]
+    take: MoveTable = [[], []]
     for color_index, color in enumerate(COLORS):
         for heap in game.heaps:
             gains, takes = [0], [0]  # nothing to take from an empty heap
@@ -234,6 +240,7 @@ def prepare_tables(game: HeapGo) -> Tuple[List, List]:
             gain[color_index].append(gains)
             take[color_index].append(takes)
     return gain, take
+
 
 # ============================================================================
 # A2: the solver
@@ -383,44 +390,54 @@ class Simulator:
         self.sim_limit = DEFAULT_SIMULATIONS
         self.policy = DEFAULT_POLICY
 
-    def simulate(self, state: HeapGo, gain: List[int]) -> Optional[str]:
-        game = state.copy()
-        moves = game.legal_moves()
+    def simulate(self, state: HeapGo, gain: MoveTable, take: MoveTable) -> str:
+        """
+        Uses a snapshot of the current game state and stores new heap_sizes
+        when a move is played (tokens taken from a heap)
+        """
+        heap_sizes = [len(heap) for heap in state.heaps]
+        scores = [state.score[BLACK], state.score[WHITE]]
+        color = COLORS.index(state.toplay)
+        moves = state.legal_moves()
 
         while not len(moves) == 0:
             if self.policy == "random":
                 move = random.choice(moves)
-            else:   # probabilistic
-                weights = self.calculate_weights(game, moves, gain)
+            else:  # probabilistic
+                weights = self.calculate_weights(color, moves, gain, heap_sizes)
                 move = random.choices(moves, weights=weights)[0]
 
-            game.play_move(move)
+            scores[color] += gain[color][move][heap_sizes[move]]
+            heap_sizes[move] -= take[color][move][heap_sizes[move]]
+            color = 1 - color
             # Remove an empty heap so it cannot be picked from
-            if len(game.heaps[move]) == 0:
+            if heap_sizes[move] == 0:
                 moves.remove(move)
 
-        return game.winner()
+        if scores[0] > scores[1]:
+            return BLACK
+        return WHITE
 
-    def calculate_weights(self, game: HeapGo, moves: List[int], gain: List[int]) -> List[int]:
-        color = COLORS.index(game.toplay)
-        return [gain[color][heap][len(game.heaps[heap])] for heap in moves]
+    def calculate_weights(self, color: int, moves: List[int], gain: MoveTable, heap_sizes: List[int]) -> List[int]:
+        return [gain[color][heap][heap_sizes[heap]] for heap in moves]
 
     def best_move(self, game: HeapGo) -> int:
         """
         Generates best move using simulate and the current set policy
         """
         color = game.toplay
-        most_wins = -1              # Need to set this to -1, else no wins cna return None
+        most_wins = -1  # Need to set this to -1, else no wins cna return None
         move_with_most_wins = None
-        gain, _ = prepare_tables(game)
+        gain, take = prepare_tables(game)
 
         for move in game.legal_moves():
             taken, gained = game.play_move(move)
             wins = 0
-            
-            # From the current move, simulate n=self.sim_limit further moves
+
+            # From the current move, simulate n=self.sim_limit playouts and
+            # count wins for the player
             for _ in range(self.sim_limit):
-                if self.simulate(game, gain) == color:
+                if self.simulate(game, gain, take) == color:
                     wins += 1
             if wins > most_wins:
                 most_wins = wins
@@ -428,7 +445,8 @@ class Simulator:
             game.undo_move(move, taken, gained)
 
         return move_with_most_wins
-    
+
+
 CommandMap = Dict[str, Callable[[str], bool]]
 
 
@@ -576,8 +594,8 @@ class CommandInterface:
         if self.game is None:
             print_error("no game started")
             return False
-        gain, _ = prepare_tables(self.game)
-        print(self.simulator.simulate(self.game, gain))
+        gain, take = prepare_tables(self.game)
+        print(self.simulator.simulate(self.game, gain, take))
         return True
 
     def cmd_numsimulations(self, args: str) -> bool:
@@ -598,27 +616,30 @@ class CommandInterface:
         if self.game is None:
             print_error("no game started")
             return False
-        
+
         moves = self.game.legal_moves()
         move_count = len(moves)
 
         if move_count == 0:
             return True
-        
+
         if self.simulator.policy == 'random':
             weights = [1] * move_count
         else:
+            color = COLORS.index(self.game.toplay)
+            heap_sizes = [len(heap) for heap in self.game.heaps]
             gain, _ = prepare_tables(self.game)
-            weights = self.simulator.calculate_weights(self.game, moves, gain)
+            weights = self.simulator.calculate_weights(color, moves, gain, heap_sizes)
 
         total = sum(weights)
+        # Claude Opus 5.5 helped me come up with this method of formatting. It did not generate any code,
+        # I had it list different approaches and help me with syntax
         rounded = [(Decimal(w) / Decimal(total)).quantize(THOUSANDTHS, rounding=ROUND_HALF_UP) for w in weights]
         policy_moves = zip(moves, rounded)
         formatted_moves = ["{} {}".format(heap, probability) for heap, probability in policy_moves]
         print(" ".join(formatted_moves))
-        
+
         return True
-    
 #============================================================================
 # End of functions requiring implementation
 #============================================================================
